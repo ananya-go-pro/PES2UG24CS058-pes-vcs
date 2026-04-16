@@ -209,6 +209,11 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         c.has_parent = 0;
     }
 
+    // 3. Author + timestamp
+    const char *author = pes_author();
+    snprintf(c.author, sizeof(c.author), "%s", author);
+    c.timestamp = (uint64_t)time(NULL);
+
     (void)message;
     (void)commit_id_out;
     return 0;

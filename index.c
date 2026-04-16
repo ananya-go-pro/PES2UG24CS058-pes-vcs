@@ -244,20 +244,29 @@ int index_add(Index *index, const char *path) {
     if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
     long sz = ftell(f);
     rewind(f);
-
     uint8_t *buf = malloc(sz > 0 ? (size_t)sz : 1);
     if (!buf) { fclose(f); return -1; }
-
     if (sz > 0) fread(buf, 1, (size_t)sz, f);
     fclose(f);
 
     ObjectID id;
-    if (object_write(OBJ_BLOB, buf, (size_t)sz, &id) != 0) {
-        free(buf);
-        return -1;
-    }
+    if (object_write(OBJ_BLOB, buf, (size_t)sz, &id) != 0) { free(buf); return -1; }
     free(buf);
 
-    (void)index;
-    return 0;
+    IndexEntry *e = index_find(index, path);
+    if (!e) {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        e = &index->entries[index->count++];
+        strncpy(e->path, path, sizeof(e->path));
+        e->path[sizeof(e->path)-1] = '\0';
+    }
+
+    // Fill metadata
+    e->hash = id;
+    e->mtime_sec = (uint64_t)st.st_mtime;
+    e->size = (uint32_t)st.st_size;
+    // Simple mode mapping
+    if (st.st_mode & S_IXUSR) e->mode = 0100755; else e->mode = 0100644;
+
+    return index_save(index);
 }

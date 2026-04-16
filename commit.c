@@ -217,7 +217,7 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     // 4. Message
     snprintf(c.message, sizeof(c.message), "%s", message ? message : "");
 
-    // 5. Serialize (but don't write yet)
+    // 5. Serialize
     void *raw = NULL;
     size_t raw_len = 0;
     if (commit_serialize(&c, &raw, &raw_len) != 0) return -1;

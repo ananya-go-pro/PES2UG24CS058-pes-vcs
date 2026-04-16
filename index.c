@@ -228,8 +228,36 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        fprintf(stderr, "error: cannot stat '%s'\n", path);
+        return -1;
+    }
+
+    if (!S_ISREG(st.st_mode)) {
+        fprintf(stderr, "error: '%s' is not a regular file\n", path);
+        return -1;
+    }
+
+    FILE *f = fopen(path, "rb");
+    if (!f) { fprintf(stderr, "error: cannot open '%s'\n", path); return -1; }
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long sz = ftell(f);
+    rewind(f);
+
+    uint8_t *buf = malloc(sz > 0 ? (size_t)sz : 1);
+    if (!buf) { fclose(f); return -1; }
+
+    if (sz > 0) fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+
+    ObjectID id;
+    if (object_write(OBJ_BLOB, buf, (size_t)sz, &id) != 0) {
+        free(buf);
+        return -1;
+    }
+    free(buf);
+
+    (void)index;
+    return 0;
 }

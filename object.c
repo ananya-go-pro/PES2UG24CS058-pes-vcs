@@ -102,6 +102,7 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         default: return -1;
     }
 
+    // Build header: "<type> <size>\0"
     char header[64];
     int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len);
     if (header_len < 0 || header_len >= (int)sizeof(header)) return -1;
@@ -109,20 +110,63 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     size_t full_len = (size_t)header_len + 1 + len;
     uint8_t *full = malloc(full_len);
     if (!full) return -1;
-
     memcpy(full, header, header_len);
     full[header_len] = '\0';
     if (len > 0 && data) memcpy(full + header_len + 1, data, len);
 
+    // Compute hash of the full object
     compute_hash(full, full_len, id_out);
 
+    // If already exists, deduplicate
     if (object_exists(id_out)) {
         free(full);
         return 0;
     }
 
+    // Ensure shard directory exists
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(id_out, hex);
+    char dirpath[512];
+    snprintf(dirpath, sizeof(dirpath), "%s/%.2s", OBJECTS_DIR, hex);
+    // mkdir -p equivalent for single shard
+    if (mkdir(dirpath, 0755) != 0) {
+        // ignore EEXIST
+    }
+
+    // Prepare final and temporary paths
+    char final_path[512];
+    object_path(id_out, final_path, sizeof(final_path));
+    char tmp_path[560];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d", final_path, getpid());
+
+    // Write to temp file
+    int fd = open(tmp_path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) { free(full); return -1; }
+
+    ssize_t written = 0;
+    size_t to_write = full_len;
+    uint8_t *pw = full;
+    while (to_write > 0) {
+        ssize_t w = write(fd, pw, to_write);
+        if (w <= 0) { close(fd); unlink(tmp_path); free(full); return -1; }
+        to_write -= (size_t)w;
+        pw += w;
+        written += w;
+    }
+
+    // Flush to disk
+    fsync(fd);
+    close(fd);
+
+    // Move into place atomically
+    if (rename(tmp_path, final_path) != 0) { unlink(tmp_path); free(full); return -1; }
+
+    // fsync the shard directory
+    int dirfd = open(dirpath, O_RDONLY | O_DIRECTORY);
+    if (dirfd >= 0) { fsync(dirfd); close(dirfd); }
+
     free(full);
-    return -1;
+    return 0;
 }
 
 // Read an object from the store.

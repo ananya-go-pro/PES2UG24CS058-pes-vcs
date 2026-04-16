@@ -1,6 +1,8 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lcrypto
+OPENSSL_PREFIX = $(shell brew --prefix openssl@3)
+
+CFLAGS = -Wall -Wextra -O2 -I$(OPENSSL_PREFIX)/include
+LDFLAGS = -L$(OPENSSL_PREFIX)/lib -lcrypto -lssl
 
 # ─── Main binary ─────────────────────────────────────────────────────────────
 

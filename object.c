@@ -102,12 +102,26 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         default: return -1;
     }
 
-    // Build header: "<type> <size>\0"
     char header[64];
     int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len);
     if (header_len < 0 || header_len >= (int)sizeof(header)) return -1;
 
-    (void)data; (void)id_out;
+    size_t full_len = (size_t)header_len + 1 + len;
+    uint8_t *full = malloc(full_len);
+    if (!full) return -1;
+
+    memcpy(full, header, header_len);
+    full[header_len] = '\0';
+    if (len > 0 && data) memcpy(full + header_len + 1, data, len);
+
+    compute_hash(full, full_len, id_out);
+
+    if (object_exists(id_out)) {
+        free(full);
+        return 0;
+    }
+
+    free(full);
     return -1;
 }
 

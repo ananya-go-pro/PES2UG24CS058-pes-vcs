@@ -200,6 +200,16 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     // 1. Write tree objects from the index
     if (tree_from_index(&c.tree) != 0) return -1;
 
-    (void)message; (void)commit_id_out;
+    // 2. Determine parent (if any)
+    ObjectID parent;
+    if (head_read(&parent) == 0) {
+        c.parent = parent;
+        c.has_parent = 1;
+    } else {
+        c.has_parent = 0;
+    }
+
+    (void)message;
+    (void)commit_id_out;
     return 0;
 }

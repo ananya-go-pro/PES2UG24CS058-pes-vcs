@@ -187,10 +187,35 @@ int cmp_index_entries(const void *a, const void *b) {
     return strcmp(ea->path, eb->path);
     }
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    // Ensure .pes directory exists
+    mkdir(PES_DIR, 0755);
+
+    // Make a sorted copy
+    Index tmp = *index;
+    // qsort by path
+    qsort(tmp.entries, tmp.count, sizeof(IndexEntry), cmp_index_entries);
+
+    char tmp_path[512];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d", INDEX_FILE, getpid());
+    FILE *f = fopen(tmp_path, "w");
+    if (!f) return -1;
+
+    for (int i = 0; i < tmp.count; i++) {
+        const IndexEntry *e = &tmp.entries[i];
+        char hex[HASH_HEX_SIZE + 1];
+        hash_to_hex(&e->hash, hex);
+        fprintf(f, "%o %s %llu %u %s\n", e->mode, hex, (unsigned long long)e->mtime_sec, e->size, e->path);
+    }
+
+    fflush(f);
+    fsync(fileno(f));
+    fclose(f);
+
+    if (rename(tmp_path, INDEX_FILE) != 0) { unlink(tmp_path); return -1; }
+
+    int dirfd = open(PES_DIR, O_RDONLY | O_DIRECTORY);
+    if (dirfd >= 0) { fsync(dirfd); close(dirfd); }
+    return 0;
 }
 
 // Stage a file for the next commit.

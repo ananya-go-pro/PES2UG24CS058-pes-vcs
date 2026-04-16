@@ -214,7 +214,16 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     snprintf(c.author, sizeof(c.author), "%s", author);
     c.timestamp = (uint64_t)time(NULL);
 
-    (void)message;
+    // 4. Message
+    snprintf(c.message, sizeof(c.message), "%s", message ? message : "");
+
+    // 5. Serialize (but don't write yet)
+    void *raw = NULL;
+    size_t raw_len = 0;
+    if (commit_serialize(&c, &raw, &raw_len) != 0) return -1;
+
+    free(raw);
+
     (void)commit_id_out;
     return 0;
 }

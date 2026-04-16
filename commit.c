@@ -217,13 +217,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     // 4. Message
     snprintf(c.message, sizeof(c.message), "%s", message ? message : "");
 
-    // 5. Serialize
-    void *raw = NULL;
-    size_t raw_len = 0;
+    // 5. Serialize and write commit object
+    void *raw = NULL; size_t raw_len = 0;
     if (commit_serialize(&c, &raw, &raw_len) != 0) return -1;
-
+    if (object_write(OBJ_COMMIT, raw, raw_len, commit_id_out) != 0) { free(raw); return -1; }
     free(raw);
 
-    (void)commit_id_out;
+    // 6. Update HEAD to point to new commit
+    if (head_update(commit_id_out) != 0) return -1;
+
     return 0;
 }
